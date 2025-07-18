@@ -25,6 +25,7 @@ import {
 } from './logic/characterLogic';
 import { AttributesSection } from './AttributesSection';
 import styles from '../../../styles';
+import KindSoulModal from './modals/traits/KindSoulModal';
 
 const ImageSection = ({ origin }) => {
   const defaultImage = require('../../../assets/bg1.png');
@@ -108,10 +109,10 @@ const SkillRow = ({
   disabled,
   trait
 }) => {
-  // const isForcedSkill = trait?.forcedSkills?.includes(name);
-  // const isRequiredButNotSelected = isForcedSkill && !isSelected;
-  // Убираем логику "обязателен, но не выбран", так как она больше не нужна.
-  // Стиль isForced теперь отвечает за подсветку выбранного обязательного навыка.
+  // Проверяем, является ли навык частью массива "Добрая Душа" и НЕ выбран
+  const isKindSoulSkill = trait?.name === 'Добрая Душа' && 
+                         trait.skillPool?.includes(name) && 
+                         !trait.forcedSkills?.includes(name);
 
   return (
     <View style={[styles.skillRow, rowStyle]}>
@@ -123,14 +124,13 @@ const SkillRow = ({
         <View style={[
           styles.checkbox, 
           isSelected && styles.checkboxSelected,
-          isForced && styles.checkboxForced,
-          // isRequiredButNotSelected && styles.checkboxRequired
+          isForced && styles.checkboxForced
         ]} />
         <Text style={[
           styles.skillName, 
           isSelected && styles.skillNameSelected,
           isForced && styles.skillNameForced,
-          // isRequiredButNotSelected && styles.skillNameRequired
+          isKindSoulSkill && styles.kindSoulSkill
         ]}>
           {name}
         </Text>
@@ -236,9 +236,9 @@ export default function CharacterScreen() {
   const [selectedOrigin, setSelectedOrigin] = useState(null);
   const [showTraitSkillModal, setShowTraitSkillModal] = useState(false);
   const [isTraitModalVisible, setIsTraitModalVisible] = useState(false);
-  
   const [showResetWarning, setShowResetWarning] = useState(false);
   const [resetType, setResetType] = useState(null);
+  const [isKindSoulModalVisible, setIsKindSoulModalVisible] = useState(false);
 
   useEffect(() => {
     const newMaxLuck = getLuckPoints(attributes);
@@ -277,8 +277,17 @@ export default function CharacterScreen() {
     const currentSkill = skills[skillIndex];
     
     const maxSelectable = getMaxSelectableSkills(trait);
-    // Модификатор теперь находится во вложенном объекте
+
+    // Проверяем, является ли навык ограниченным навыком из пула "Добрая Душа"
+    const isRestrictedKindSoulSkill = trait?.name === 'Добрая Душа' && 
+                                    trait.skillPool?.includes(skillName) && 
+                                    !trait.forcedSkills?.includes(skillName);
+
+    // Определяем максимальный ранг для навыка
     let skillMax = trait?.modifiers?.skillMaxValue ?? 6;
+    if (isRestrictedKindSoulSkill) {
+      skillMax = Math.min(skillMax, 4); // Ограничиваем 4-м рангом для навыков из пула "Добрая Душа"
+    }
     // Применяем ограничение 1-го уровня
     if (level === 1) {
       skillMax = Math.min(skillMax, 3);
@@ -316,26 +325,29 @@ export default function CharacterScreen() {
   };
 
   const handleChangeSkillValue = (index, delta) => {
-    if (!attributesSaved) {
-      Alert.alert("Сначала сохраните атрибуты");
-      return;
-    }
-    
-    if (delta > 0 && skillPointsLeft <= 0) {
-      Alert.alert("Ошибка", "У вас не осталось очков навыков для распределения.");
-      return;
-    }
+    if (skillsSaved) return;
+    const currentSkill = skills[index];
+    const isTagged = selectedSkills.includes(currentSkill.name);
 
-    setSkills(prev => {
-      const newSkills = [...prev];
-      const skill = newSkills[index];
-      const isTagged = selectedSkills.includes(skill.name);
+    // Проверяем, является ли навык ограниченным навыком из пула "Добрая Душа"
+    const isRestrictedKindSoulSkill = trait?.name === 'Добрая Душа' && 
+                                    trait.skillPool?.includes(currentSkill.name) && 
+                                    !trait.forcedSkills?.includes(currentSkill.name);
 
-      if (canChangeSkillValue(skill.value, delta, trait, level, isTagged)) {
-        newSkills[index] = { ...skill, value: skill.value + delta };
+    // Создаем временный trait с правильным ограничением для навыка
+    const effectiveTrait = isRestrictedKindSoulSkill ? {
+      ...trait,
+      modifiers: {
+        ...trait.modifiers,
+        skillMaxValue: 4 // Устанавливаем жесткое ограничение в 4 ранга
       }
-      return newSkills;
-    });
+    } : trait;
+
+    if (canChangeSkillValue(currentSkill.value, delta, effectiveTrait, level, isTagged, currentSkill.name, selectedSkills)) {
+      const newSkills = [...skills];
+      newSkills[index] = { ...newSkills[index], value: newSkills[index].value + delta };
+      setSkills(newSkills);
+    }
   };
 
   const handleChangeAttribute = (index, delta) => {
@@ -394,84 +406,71 @@ export default function CharacterScreen() {
     }
   };
   const handleSelectTrait = (traitName, newModifiersFromModal) => {
-    // Комбинируем базовую информацию о черте с модификаторами из модального окна
-    const baseInfo = TRAITS[traitName] || {};
-    const newTrait = {
-      ...baseInfo,
-      name: traitName,
-      modifiers: {
-        ...(baseInfo.modifiers || {}),
-        ...(newModifiersFromModal || {})
+    if (traitName === 'Добрая Душа') {
+      const selectedTrait = TRAITS['Житель НКР']?.traits.find(t => t.name === traitName);
+      setTrait(selectedTrait);
+      setIsKindSoulModalVisible(true);
+      setIsTraitModalVisible(false); // Закрываем основное модальное окно
+      return;
+    }
+
+    // Существующая логика для других трейтов
+    const traitDetails = TRAITS[origin.name]?.traits.find(t => t.name === traitName);
+    if (traitDetails) {
+      const fullTrait = { ...traitDetails, ...newModifiersFromModal };
+      const newlyForced = fullTrait.forcedSkills 
+        ? [...new Set([...forcedSelectedSkills, ...fullTrait.forcedSkills])]
+        : forcedSelectedSkills;
+
+      if (fullTrait.forcedSkills) {
+        setSelectedSkills(prev => [...new Set([...prev, ...fullTrait.forcedSkills])]);
       }
-    };
-    
-    const oldTrait = trait; // Запоминаем старую черту
-
-    // Атомарно обновляем все состояния, отменяя старые и применяя новые модификаторы
-    setAttributes(currentAttributes => {
-      const oldAttrMods = oldTrait?.modifiers?.attributes || {};
-      const newAttrMods = newTrait?.modifiers?.attributes || {};
-      // Сначала отменяем старые модификаторы
-      let tempAttrs = currentAttributes.map(attr => ({
-        ...attr,
-        value: attr.value - (oldAttrMods[attr.name] || 0)
-      }));
-      // Затем применяем новые
-      return tempAttrs.map(attr => ({
-        ...attr,
-        value: attr.value + (newAttrMods[attr.name] || 0)
-      }));
-    });
-
-    const oldForcedSkills = oldTrait?.modifiers?.forcedSkills || [];
-    const newForcedSkills = newTrait?.modifiers?.forcedSkills || [];
-
-    // Обновляем список обязательных навыков
-    setForcedSelectedSkills(currentForced => {
-      const withoutOld = currentForced.filter(skill => !oldForcedSkills.includes(skill));
-      return [...new Set([...withoutOld, ...newForcedSkills])];
-    });
-
-    // Обновляем отмеченные навыки и их значения
-    setSelectedSkills(currentSelected => {
-      const withoutOld = currentSelected.filter(skill => !oldForcedSkills.includes(skill));
-      return [...new Set([...withoutOld, ...newForcedSkills])];
-    });
-
-    setSkills(currentSkills => {
-      let tempSkills = [...currentSkills];
-      // Отменяем +2 от старых обязательных навыков
-      oldForcedSkills.forEach(skillName => {
-        const index = tempSkills.findIndex(s => s.name === skillName);
-        if (index > -1) {
-          tempSkills[index] = {...tempSkills[index], value: Math.max(0, tempSkills[index].value - 2)};
-        }
-      });
-      // Применяем +2 к новым обязательным навыкам (если их значение < 2)
-      newForcedSkills.forEach(skillName => {
-        const index = tempSkills.findIndex(s => s.name === skillName);
-        if (index > -1 && tempSkills[index].value < 2) {
-          tempSkills[index] = {...tempSkills[index], value: 2};
-        }
-      });
-      return tempSkills;
-    });
-
-    // Обновляем эффекты
-    setEffects(currentEffects => {
-      const oldEffects = oldTrait?.modifiers?.effects || [];
-      const newEffects = newTrait?.modifiers?.effects || [];
-      const withoutOld = currentEffects.filter(e => !oldEffects.includes(e));
-      return [...new Set([...withoutOld, ...newEffects])];
-    });
-    
-    // Устанавливаем саму новую черту
-    setTrait(newTrait);
-    setIsTraitModalVisible(false);
+      setTrait(fullTrait);
+      setForcedSelectedSkills(newlyForced);
+      setIsTraitModalVisible(false);
+    }
   };
 
-  // Обработчик нажатия на строку черты
+  const handleKindSoulSkillSelect = (selectedSkillsFromModal) => {
+    // Добавляем выбранные навыки к принудительным и обычным выбранным
+    const newForcedSkills = [...new Set([...selectedSkillsFromModal, ...forcedSelectedSkills])];
+    const newlyTagged = [...new Set([...selectedSkillsFromModal, ...selectedSkills])];
+    
+    setForcedSelectedSkills(newForcedSkills);
+    setSelectedSkills(newlyTagged);
+    setIsKindSoulModalVisible(false);
+
+    // Обновляем значения навыков (добавляем +2 к выбранным)
+    setSkills(prev => prev.map(skill => {
+      if (selectedSkillsFromModal.includes(skill.name)) {
+        return { ...skill, value: Math.max(2, skill.value) };
+      }
+      return skill;
+    }));
+  
+    // Обновляем ограничения навыков
+    if (trait.name === 'Добрая Душа') {
+      const restrictedSkills = trait.skillPool.filter(skill => !selectedSkillsFromModal.includes(skill));
+      const updatedTrait = {
+        ...trait,
+        skillRankRestrictions: {
+          ...trait.skillRankRestrictions,
+          restricted: restrictedSkills,
+          pool: trait.skillPool 
+        },
+        // Добавляем модификатор для увеличения максимального количества навыков
+        modifiers: {
+          ...trait.modifiers,
+          extraSkills: 2  // Добавляем 2 к базовым 3 навыкам
+        },
+        forcedSkills: selectedSkillsFromModal // Добавляем выбранные навыки как принудительные
+      };
+      setTrait(updatedTrait);
+    }
+  };
+  
   const handleTraitPress = () => {
+    if (attributesSaved && skillsSaved) return;
     if (!origin) {
       Alert.alert("Ошибка", "Сначала выберите происхождение");
       return;
@@ -541,6 +540,16 @@ export default function CharacterScreen() {
   };
 
   const handleSaveSkills = () => {
+    // Проверяем количество базовых навыков (без учета навыков от черты)
+    const baseSkillsCount = selectedSkills.filter(skill => 
+      !trait?.forcedSkills?.includes(skill)
+    ).length;
+
+    if (baseSkillsCount < 3) {
+      Alert.alert("Ошибка", "Необходимо отметить 3 базовых навыка");
+      return;
+    }
+
     const { isValid, maxRank } = validateSkills(skills, trait);
     
     if (!isValid) {
@@ -759,16 +768,29 @@ export default function CharacterScreen() {
         onCancel={() => setShowTraitSkillModal(false)}
       />
 
-      {/* Модальное окно для выбора черты */}
       {TraitModalComponent && (
         <TraitModalComponent
           visible={isTraitModalVisible}
           onClose={() => setIsTraitModalVisible(false)}
           onSelect={handleSelectTrait}
+          traits={TRAITS[origin?.name]?.traits || []}
           currentTrait={trait}
           skills={skills}
         />
       )}
+
+      <KindSoulModal
+        visible={isKindSoulModalVisible}
+        onClose={(reopenTraitModal) => {
+          setIsKindSoulModalVisible(false);
+          if (reopenTraitModal) {
+            setTrait(null);
+            setIsTraitModalVisible(true);
+          }
+        }}
+        onSelect={handleKindSoulSkillSelect}
+        trait={trait}
+      />
     </SafeAreaView>
   );
 } 
