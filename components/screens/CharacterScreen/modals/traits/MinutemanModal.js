@@ -1,24 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import { TRAITS } from '../../logic/traitsData';
 
 export const traitConfig = {
   originName: 'Минитмен',
+  traitName: 'Народное ополчение',
   modalType: 'choice'
 };
 
 const MinutemanModal = ({ visible, onSelect, onClose }) => {
-  const trait = {
-    name: "Народное ополчение",
-    description: "Торговые караваны в ваших поселениях привлекают торговцев каждые 5 дней, а не 7. Поселения, которые вы основали любым способом, имеют базовый ресурс обороны 4. В качестве бонуса вы отмечаете дополнительный навык вы можете выбрать: либо энергетическое, либо стрелковое оружие . Сопротивление урону увеличивается на +1, если вы находитесь в укрытии, и вы наносите +1 Боевой Кубик урона, если вы и ваши спутники в меньшинстве.",
-    forcedSkills: ['Энергооружие', 'Стрелковое оружие'],
-    effects: ['Улучшенные караваны', 'Базовая оборона 4', 'Бонус к сопротивлению в укрытии', 'Бонус к урону в меньшинстве']
-  };
+  const [selectedSkill, setSelectedSkill] = useState(null);
+  
+  const traitName = 'Народное ополчение';
+  const trait = TRAITS[traitName];
 
   const handleSelectSkill = (skill) => {
-    onSelect(trait.name, { 
-        skill: skill,
-        effects: trait.effects 
+    setSelectedSkill(skill);
+  };
+
+  const handleConfirm = () => {
+    if (!selectedSkill) return;
+    
+    onSelect(traitName, {
+      forcedSkills: [selectedSkill],
+      extraSkills: 1,
+      effects: trait.effects
     });
+    onClose();
   };
 
   return (
@@ -31,13 +39,17 @@ const MinutemanModal = ({ visible, onSelect, onClose }) => {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           <Text style={styles.modalTitle}>Минитмен</Text>
-          <Text style={styles.traitName}>{trait.name}</Text>
+          <Text style={styles.traitName}>{traitName}</Text>
           <Text style={styles.modalText}>{trait.description}</Text>
           
           {trait.forcedSkills?.map(skill => (
             <TouchableOpacity
               key={skill}
-              style={[styles.modalButton, styles.skillOption]}
+              style={[
+                styles.modalButton, 
+                styles.skillOption,
+                selectedSkill === skill && styles.selectedSkillOption
+              ]}
               onPress={() => handleSelectSkill(skill)}
             >
               <Text style={styles.buttonText}>{skill}</Text>
@@ -45,10 +57,11 @@ const MinutemanModal = ({ visible, onSelect, onClose }) => {
           ))}
 
           <TouchableOpacity
-            style={[styles.modalButton, styles.cancelButton]}
-            onPress={onClose}
+            style={[styles.modalButton, styles.confirmButton, !selectedSkill && styles.disabledButton]}
+            onPress={handleConfirm}
+            disabled={!selectedSkill}
           >
-            <Text style={styles.buttonText}>Отмена</Text>
+            <Text style={styles.buttonText}>Выбрать</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -97,15 +110,22 @@ const styles = StyleSheet.create({
     skillOption: {
         backgroundColor: '#2196F3',
     },
-    cancelButton: {
-        backgroundColor: '#9E9E9E',
-        marginTop: 10
+    selectedSkillOption: {
+      backgroundColor: '#1976D2',
+      borderColor: '#fff',
+      borderWidth: 2,
+    },
+    confirmButton: {
+      backgroundColor: '#4CAF50',
+    },
+    disabledButton: {
+      opacity: 0.5,
     },
     buttonText: {
         color: 'white',
         fontWeight: 'bold',
         fontSize: 16
-    },
+    }
 });
 
 export default MinutemanModal; 

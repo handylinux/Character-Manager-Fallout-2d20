@@ -131,3 +131,28 @@ export const validateSkills = (skills, trait) => {
     maxRank
   };
 };
+
+export const isMultiTraitOrigin = (originName) => {
+  const multiTraitOrigins = ['Житель НКР', 'Выживший', 'Дикарь'];
+  return multiTraitOrigins.includes(originName);
+};
+
+export const ALL_SKILLS = [
+  { name: 'Атлетика', value: 0 },
+  { name: 'Бартер', value: 0 },
+  { name: 'Тяжелое оружие', value: 0 },
+  { name: 'Энергооружие', value: 0 },
+  { name: 'Взрывчатка', value: 0 },
+  { name: 'Отмычки', value: 0 },
+  { name: 'Медицина', value: 0 },
+  { name: 'Ближний бой', value: 0 },
+  { name: 'Управление ТС', value: 0 },
+  { name: 'Ремонт', value: 0 },
+  { name: 'Наука', value: 0 },
+  { name: 'Стрелковое оружие', value: 0 },
+  { name: 'Скрытность', value: 0 },
+  { name: 'Красноречие', value: 0 },
+  { name: 'Выживание', value: 0 },
+  { name: 'Метание', value: 0 },
+  { name: 'Рукопашная', value: 0 }
+];

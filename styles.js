@@ -34,9 +34,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
+  disabledPressable: {
+    // No visual change, just becomes non-interactive
+  },
   pressableTitle: {
     color: '#333',
-    fontSize: 14,
+    fontSize: 16,
     marginRight: 8,
   },
   pressableValue: {

@@ -1,6 +1,7 @@
 // components/modals/BrotherhoodModal.js
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import { TRAITS } from '../../logic/traitsData';
 
 export const traitConfig = {
   originName: 'Братство Стали',
@@ -8,23 +9,21 @@ export const traitConfig = {
 };
 
 const BrotherhoodModal = ({ visible, onSelect, onClose }) => {
-  const trait = {
-    name: "Цепь, которая связывает",
-    description: "Выберите один дополнительный навык: Энергооружие, Наука или Ремонт",
-    forcedSkills: ['Энергооружие', 'Наука', 'Ремонт'],
-    extraSkills: 1
-  };
+  const [selectedSkill, setSelectedSkill] = useState(null);
+
+  const traitName = 'Цепь, которая связывает';
+  const trait = TRAITS[traitName];
 
   const handleSelectSkill = (skill) => {
-    onSelect(trait.name, { skill: skill });
+    setSelectedSkill(skill);
   };
 
   const handleConfirm = () => {
-    if (selectedSkill) {
-      onSelect('Цепь, которая связывает', { skill: selectedSkill });
-    } else {
-      onSelect('Цепь, которая связывает', {});
-    }
+    // Теперь передаем и выбранный навык, и информацию о доп. навыке
+    onSelect('Цепь, которая связывает', { 
+      forcedSkills: selectedSkill ? [selectedSkill] : [],
+      extraSkills: 1 
+    });
     onClose();
   };
 
@@ -38,7 +37,7 @@ const BrotherhoodModal = ({ visible, onSelect, onClose }) => {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           <Text style={styles.modalTitle}>Братство Стали</Text>
-          <Text style={styles.traitName}>{trait.name}</Text>
+          <Text style={styles.traitName}>{trait.name || traitName}</Text>
           
           {trait.description && (
             <Text style={styles.modalText}>{trait.description}</Text>
@@ -47,7 +46,11 @@ const BrotherhoodModal = ({ visible, onSelect, onClose }) => {
           {trait.forcedSkills?.map(skill => (
             <TouchableOpacity
               key={skill}
-              style={[styles.modalButton, styles.skillOption]}
+              style={[
+                styles.modalButton, 
+                styles.skillOption,
+                selectedSkill === skill && styles.selectedSkillOption
+              ]}
               onPress={() => handleSelectSkill(skill)}
             >
               <Text style={styles.buttonText}>{skill}</Text>
@@ -60,13 +63,6 @@ const BrotherhoodModal = ({ visible, onSelect, onClose }) => {
             disabled={!selectedSkill}
           >
             <Text style={styles.buttonText}>Выбрать</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.modalButton, styles.cancelButton]}
-            onPress={handleConfirm}
-          >
-            <Text style={styles.buttonText}>Не выбирать</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -108,6 +104,11 @@ const styles = StyleSheet.create({
   },
   skillOption: {
     backgroundColor: '#2196F3',
+  },
+  selectedSkillOption: {
+    backgroundColor: '#1976D2',
+    borderColor: '#fff',
+    borderWidth: 2,
   },
   cancelButton: {
     backgroundColor: '#9E9E9E',

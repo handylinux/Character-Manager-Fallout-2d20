@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ImageBackground, Pressable, SafeAreaView, StatusBar, Modal, Alert, Platform
 } from 'react-native';
+import { useCharacter } from '../../CharacterContext'; 
 import OriginModal from './modals/OriginModal';
 import TraitSkillModal from './modals/TraitSkillModal';
 import { ORIGINS } from './logic/originsData';
@@ -18,30 +19,12 @@ import {
   canChangeAttribute,
   canChangeSkillValue,
   getAttributeLimits,
-  validateSkills
+  validateSkills,
+  ALL_SKILLS,
+  isMultiTraitOrigin
 } from './logic/characterLogic';
 import { AttributesSection } from './AttributesSection';
-import styles from '../../styles';
-
-const ALL_SKILLS = [
-  { name: 'Атлетика', value: 0 },
-  { name: 'Бартер', value: 0 },
-  { name: 'Тяжелое оружие', value: 0 },
-  { name: 'Энергооружие', value: 0 },
-  { name: 'Взрывчатка', value: 0 },
-  { name: 'Отмычки', value: 0 },
-  { name: 'Медицина', value: 0 },
-  { name: 'Ближний бой', value: 0 },
-  { name: 'Управление ТС', value: 0 },
-  { name: 'Ремонт', value: 0 },
-  { name: 'Наука', value: 0 },
-  { name: 'Стрелковое оружие', value: 0 },
-  { name: 'Скрытность', value: 0 },
-  { name: 'Красноречие', value: 0 },
-  { name: 'Выживание', value: 0 },
-  { name: 'Метание', value: 0 },
-  { name: 'Рукопашная', value: 0 }
-];
+import styles from '../../../styles';
 
 const ImageSection = ({ origin }) => {
   const defaultImage = require('../../../assets/bg1.png');
@@ -88,11 +71,12 @@ const ResetConfirmationModal = ({ visible, onCancel, onConfirm }) => (
   </Modal>
 );
 
-const PressableRow = ({ title, value, onPress }) => (
+const PressableRow = ({ title, value, onPress, disabled }) => (
   <Pressable 
-    style={styles.pressableRow} 
+    style={[styles.pressableRow, disabled && styles.disabledPressable]} 
     onPress={onPress}
     android_ripple={{ color: '#ddd' }}
+    disabled={disabled}
   >
     <Text style={styles.pressableTitle}>{title}:</Text>
     <Text style={[
@@ -124,8 +108,10 @@ const SkillRow = ({
   disabled,
   trait
 }) => {
-  const isForcedSkill = trait?.forcedSkills?.includes(name);
-  const isRequiredButNotSelected = isForcedSkill && !isSelected;
+  // const isForcedSkill = trait?.forcedSkills?.includes(name);
+  // const isRequiredButNotSelected = isForcedSkill && !isSelected;
+  // Убираем логику "обязателен, но не выбран", так как она больше не нужна.
+  // Стиль isForced теперь отвечает за подсветку выбранного обязательного навыка.
 
   return (
     <View style={[styles.skillRow, rowStyle]}>
@@ -138,13 +124,13 @@ const SkillRow = ({
           styles.checkbox, 
           isSelected && styles.checkboxSelected,
           isForced && styles.checkboxForced,
-          isRequiredButNotSelected && styles.checkboxRequired
+          // isRequiredButNotSelected && styles.checkboxRequired
         ]} />
         <Text style={[
           styles.skillName, 
           isSelected && styles.skillNameSelected,
           isForced && styles.skillNameForced,
-          isRequiredButNotSelected && styles.skillNameRequired
+          // isRequiredButNotSelected && styles.skillNameRequired
         ]}>
           {name}
         </Text>
@@ -229,67 +215,46 @@ const LuckPointsRow = ({
 };
 
 export default function CharacterScreen() {
-  const [level, setLevel] = useState(1);
-  const [attributes, setAttributes] = useState(createInitialAttributes());
-  const [skills, setSkills] = useState(ALL_SKILLS);
-  const [selectedSkills, setSelectedSkills] = useState([]);
-  const [forcedSelectedSkills, setForcedSelectedSkills] = useState([]);
-  const [origin, setOrigin] = useState(null);
-  const [trait, setTrait] = useState(null);
-  const [equipment, setEquipment] = useState(null);
-  const [effects, setEffects] = useState([]);
-  
+  const {
+    level, setLevel,
+    attributes, setAttributes,
+    skills, setSkills,
+    selectedSkills, setSelectedSkills,
+    forcedSelectedSkills, setForcedSelectedSkills,
+    origin, setOrigin,
+    trait, setTrait,
+    equipment, setEquipment,
+    effects, setEffects,
+    luckPoints, setLuckPoints,
+    maxLuckPoints, setMaxLuckPoints,
+    attributesSaved, setAttributesSaved,
+    skillsSaved, setSkillsSaved,
+    resetCharacter,
+  } = useCharacter();
+
   const [isOriginModalVisible, setIsOriginModalVisible] = useState(false);
   const [selectedOrigin, setSelectedOrigin] = useState(null);
   const [showTraitSkillModal, setShowTraitSkillModal] = useState(false);
   const [isTraitModalVisible, setIsTraitModalVisible] = useState(false);
   
-  const [luckPoints, setLuckPoints] = useState(0);
-  const [maxLuckPoints, setMaxLuckPoints] = useState(0);
-  
-  const [attributesSaved, setAttributesSaved] = useState(false);
-  const [skillsSaved, setSkillsSaved] = useState(false);
-  
   const [showResetWarning, setShowResetWarning] = useState(false);
   const [resetType, setResetType] = useState(null);
 
   useEffect(() => {
-    const initialLuck = getLuckPoints(attributes);
-    setMaxLuckPoints(initialLuck);
-    setLuckPoints(initialLuck);
-  }, []);
-
-  useEffect(() => {
     const newMaxLuck = getLuckPoints(attributes);
-    setMaxLuckPoints(newMaxLuck);
-  }, [attributes]);
-
-  useEffect(() => {
-    if (attributesSaved) {
-      setLuckPoints(maxLuckPoints);
+    if (newMaxLuck !== maxLuckPoints) {
+      setMaxLuckPoints(newMaxLuck);
+      if (!attributesSaved) {
+        setLuckPoints(newMaxLuck);
+      }
     }
-  }, [attributesSaved, maxLuckPoints]);
+  }, [attributes, maxLuckPoints, attributesSaved, setMaxLuckPoints, setLuckPoints]);
 
   const canDistributeSkills = attributesSaved && !skillsSaved;
   const remainingAttributePoints = getRemainingAttributePoints(attributes, trait);
   const skillPointsAvailable = attributesSaved ? getSkillPoints(attributes, level) : 0;
   const skillPointsUsed = calculateSkillPointsUsed(skills, selectedSkills);
   const skillPointsLeft = Math.max(0, skillPointsAvailable - skillPointsUsed);
-
-  const resetCharacter = () => {
-    setAttributes(createInitialAttributes());
-    setSkills(ALL_SKILLS.map(s => ({...s, value: 0})));
-    setSelectedSkills([]);
-    setForcedSelectedSkills([]);
-    setAttributesSaved(false);
-    setSkillsSaved(false);
-    const initialLuck = getLuckPoints(createInitialAttributes());
-    setMaxLuckPoints(initialLuck);
-    setLuckPoints(initialLuck);
-    setTrait(null);
-    setEquipment(null);
-    setEffects([]);
-  };
 
   const handleToggleSkill = (skillName) => {
     if (!canDistributeSkills && !showTraitSkillModal) {
@@ -428,55 +393,80 @@ export default function CharacterScreen() {
       );
     }
   };
-  const handleSelectTrait = (traitName, modifiers) => {
-    const baseInfo = TRAITS[traitName] || {}; // Для описания и названия происхождения
+  const handleSelectTrait = (traitName, newModifiersFromModal) => {
+    // Комбинируем базовую информацию о черте с модификаторами из модального окна
+    const baseInfo = TRAITS[traitName] || {};
+    const newTrait = {
+      ...baseInfo,
+      name: traitName,
+      modifiers: {
+        ...(baseInfo.modifiers || {}),
+        ...(newModifiersFromModal || {})
+      }
+    };
+    
+    const oldTrait = trait; // Запоминаем старую черту
 
-    // Создаем новый объект черты. Сначала берем базовую информацию,
-    // а затем "накатываем" сверху все данные из модального окна (модификаторы).
-    const selectedTrait = { ...baseInfo, name: traitName, modifiers: modifiers };
-    setTrait(selectedTrait);
-  
-    if (modifiers) {
-      if (modifiers.attributes) {
-        setAttributes(prev => {
-          const newAttributes = [...prev];
-          for (const key in modifiers.attributes) {
-            const attrIndex = newAttributes.findIndex(a => a.name === key);
-            if (attrIndex > -1) {
-              newAttributes[attrIndex].value += modifiers.attributes[key];
-            }
-          }
-          return newAttributes;
-        });
-      }
-  
-      if (modifiers.skill) {
-        handleTraitSkillSelect(modifiers.skill);
-      }
+    // Атомарно обновляем все состояния, отменяя старые и применяя новые модификаторы
+    setAttributes(currentAttributes => {
+      const oldAttrMods = oldTrait?.modifiers?.attributes || {};
+      const newAttrMods = newTrait?.modifiers?.attributes || {};
+      // Сначала отменяем старые модификаторы
+      let tempAttrs = currentAttributes.map(attr => ({
+        ...attr,
+        value: attr.value - (oldAttrMods[attr.name] || 0)
+      }));
+      // Затем применяем новые
+      return tempAttrs.map(attr => ({
+        ...attr,
+        value: attr.value + (newAttrMods[attr.name] || 0)
+      }));
+    });
 
-      if (modifiers.skillModifiers) {
-        setSkills(prevSkills => {
-          const newSkills = [...prevSkills];
-          for (const skillName in modifiers.skillModifiers) {
-            const skillIndex = newSkills.findIndex(s => s.name === skillName);
-            if (skillIndex > -1) {
-              newSkills[skillIndex].value += modifiers.skillModifiers[skillName];
-            }
-          }
-          return newSkills;
-        });
-      }
+    const oldForcedSkills = oldTrait?.modifiers?.forcedSkills || [];
+    const newForcedSkills = newTrait?.modifiers?.forcedSkills || [];
 
-      if (modifiers.effects) {
-        setEffects(prev => [...new Set([...prev, ...modifiers.effects])]);
-      }
-      // Новый универсальный обработчик для обязательных навыков
-      if (modifiers.forcedSkills) {
-        setForcedSelectedSkills(prev => [...new Set([...prev, ...modifiers.forcedSkills])]);
-        setSelectedSkills(prev => [...new Set([...prev, ...modifiers.forcedSkills])]);
-      }
-    }
-  
+    // Обновляем список обязательных навыков
+    setForcedSelectedSkills(currentForced => {
+      const withoutOld = currentForced.filter(skill => !oldForcedSkills.includes(skill));
+      return [...new Set([...withoutOld, ...newForcedSkills])];
+    });
+
+    // Обновляем отмеченные навыки и их значения
+    setSelectedSkills(currentSelected => {
+      const withoutOld = currentSelected.filter(skill => !oldForcedSkills.includes(skill));
+      return [...new Set([...withoutOld, ...newForcedSkills])];
+    });
+
+    setSkills(currentSkills => {
+      let tempSkills = [...currentSkills];
+      // Отменяем +2 от старых обязательных навыков
+      oldForcedSkills.forEach(skillName => {
+        const index = tempSkills.findIndex(s => s.name === skillName);
+        if (index > -1) {
+          tempSkills[index] = {...tempSkills[index], value: Math.max(0, tempSkills[index].value - 2)};
+        }
+      });
+      // Применяем +2 к новым обязательным навыкам (если их значение < 2)
+      newForcedSkills.forEach(skillName => {
+        const index = tempSkills.findIndex(s => s.name === skillName);
+        if (index > -1 && tempSkills[index].value < 2) {
+          tempSkills[index] = {...tempSkills[index], value: 2};
+        }
+      });
+      return tempSkills;
+    });
+
+    // Обновляем эффекты
+    setEffects(currentEffects => {
+      const oldEffects = oldTrait?.modifiers?.effects || [];
+      const newEffects = newTrait?.modifiers?.effects || [];
+      const withoutOld = currentEffects.filter(e => !oldEffects.includes(e));
+      return [...new Set([...withoutOld, ...newEffects])];
+    });
+    
+    // Устанавливаем саму новую черту
+    setTrait(newTrait);
     setIsTraitModalVisible(false);
   };
 
@@ -484,6 +474,12 @@ export default function CharacterScreen() {
   const handleTraitPress = () => {
     if (!origin) {
       Alert.alert("Ошибка", "Сначала выберите происхождение");
+      return;
+    }
+
+    // Блокируем, если черта уже выбрана и происхождение не предполагает нескольких черт
+    if (trait && !isMultiTraitOrigin(origin.name)) {
+      Alert.alert("Информация", "Черта для этого происхождения уже выбрана.");
       return;
     }
     
@@ -504,12 +500,22 @@ export default function CharacterScreen() {
   };
 
   const handleTraitSkillSelect = (skill) => {
-    setForcedSelectedSkills([skill]);
-    const skillIndex = skills.findIndex(s => s.name === skill);
-    setSelectedSkills(prev => [...prev, skill]);
-    setSkills(prev => prev.map((s, i) => 
-      i === skillIndex ? { ...s, value: s.value + 2 } : s
-    ));
+    setForcedSelectedSkills(prev => [...new Set([...prev, skill])]);
+    setSelectedSkills(prev => [...new Set([...prev, skill])]);
+    
+    setSkills(prev => {
+      const skillIndex = prev.findIndex(s => s.name === skill);
+      if (skillIndex > -1) {
+        const newSkills = [...prev];
+        const currentSkill = newSkills[skillIndex];
+        if (currentSkill.value < 2) {
+            newSkills[skillIndex] = { ...currentSkill, value: 2 };
+        }
+        return newSkills;
+      }
+      return prev;
+    });
+
     setShowTraitSkillModal(false);
   };
 
@@ -568,7 +574,6 @@ export default function CharacterScreen() {
   const confirmReset = () => {
     if (resetType === 'attributes' || resetType === 'all') {
       resetCharacter();
-      setTrait(null);
     } else if (resetType === 'skills') {
       const newSkills = ALL_SKILLS.map(skill => ({
         ...skill,
@@ -591,184 +596,179 @@ export default function CharacterScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" />
-      <ImageBackground 
-        source={require('../../../assets/bg.png')} 
-        style={styles.background}
-        imageStyle={{ opacity: 0.3 }}
+      <ScrollView 
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
       >
-        <ScrollView 
-          style={styles.container}
-          contentContainerStyle={styles.scrollContent}
-        >
-          <View style={styles.header}>
-            <PressableRow 
-              title="Происхождение" 
-              value={origin ? origin.name : 'Не выбрано'}
-              onPress={() => setIsOriginModalVisible(true)}
+        <View style={styles.header}>
+          <PressableRow 
+            title="Происхождение" 
+            value={origin ? origin.name : 'Не выбрано'}
+            onPress={() => setIsOriginModalVisible(true)}
+          />
+          <PressableRow 
+            title="Черта" 
+            value={trait ? trait.name : 'Не выбрано'}
+            onPress={handleTraitPress}
+            disabled={trait && !isMultiTraitOrigin(origin?.name)}
+          />
+          <PressableRow 
+            title="Снаряжение" 
+            value={equipment || 'Не выбрано'}
+            onPress={() => {}}
+          />
+          <View style={styles.levelContainer}>
+            <Text style={styles.levelLabel}>Уровень:</Text>
+            <CompactCounter 
+              value={level}
+              onIncrease={() => handleLevelChange(1)}
+              onDecrease={() => handleLevelChange(-1)}
             />
-            <PressableRow 
-              title="Черта" 
-              value={trait ? trait.name : 'Не выбрано'}
-              onPress={handleTraitPress}
+          </View>
+        </View>
+
+        <View style={styles.columnsContainer}>
+          <View style={styles.leftColumn}>
+            <AttributesSection 
+              attributes={attributes}
+              onAttributeChange={handleChangeAttribute}
+              remainingAttributePoints={remainingAttributePoints}
+              attributesSaved={attributesSaved}
+              onSaveAttributes={handleSaveAttributes}
+              onResetAttributes={handleResetAttributes}
+              trait={trait}
             />
-            <PressableRow 
-              title="Снаряжение" 
-              value={equipment || 'Не выбрано'}
-              onPress={() => {}}
-            />
-            <View style={styles.levelContainer}>
-              <Text style={styles.levelLabel}>Уровень:</Text>
-              <CompactCounter 
-                value={level}
-                onIncrease={() => handleLevelChange(1)}
-                onDecrease={() => handleLevelChange(-1)}
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>ХАРАКТЕРИСТИКИ</Text>
+              </View>
+              <DerivedRow 
+                title="Очки Атрибутов" 
+                value={remainingAttributePoints} 
+              />
+              <DerivedRow 
+                title="Отмечено навыков" 
+                value={`${selectedSkills.length} / ${getMaxSelectableSkills(trait)}`} 
+              />
+              <DerivedRow 
+                title="Очки Навыков" 
+                value={attributesSaved ? `${skillPointsLeft} / ${skillPointsAvailable}` : '—'} 
+              />
+              <LuckPointsRow 
+                luckPoints={luckPoints}
+                maxLuckPoints={maxLuckPoints}
+                onSpend={handleSpendLuckPoint}
+                onRestore={handleRestoreLuckPoint}
               />
             </View>
+
+            <ImageSection origin={origin} />
           </View>
 
-          <View style={styles.columnsContainer}>
-            <View style={styles.leftColumn}>
-              <AttributesSection 
-                attributes={attributes}
-                onAttributeChange={handleChangeAttribute}
-                remainingAttributePoints={remainingAttributePoints}
-                attributesSaved={attributesSaved}
-                onSaveAttributes={handleSaveAttributes}
-                onResetAttributes={handleResetAttributes}
-                trait={trait}
-              />
-
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>ХАРАКТЕРИСТИКИ</Text>
-                </View>
-                <DerivedRow 
-                  title="Очки Атрибутов" 
-                  value={remainingAttributePoints} 
-                />
-                <DerivedRow 
-                  title="Отмечено навыков" 
-                  value={`${selectedSkills.length} / ${getMaxSelectableSkills(trait)}`} 
-                />
-                <DerivedRow 
-                  title="Очки Навыков" 
-                  value={attributesSaved ? `${skillPointsLeft} / ${skillPointsAvailable}` : '—'} 
-                />
-                <LuckPointsRow 
-                  luckPoints={luckPoints}
-                  maxLuckPoints={maxLuckPoints}
-                  onSpend={handleSpendLuckPoint}
-                  onRestore={handleRestoreLuckPoint}
-                />
-              </View>
-
-              <ImageSection origin={origin} />
-            </View>
-
-            <View style={styles.rightColumn}>
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>НАВЫКИ</Text>
-                  {attributesSaved && !skillsSaved && (
-                    <Text style={styles.skillsCount}>
-                      Доступно: {skillPointsLeft} очков
-                    </Text>
-                  )}
-                </View>
-                <View style={styles.skillsHeader}>
-                  <Text style={styles.skillsHeaderText}>Навык</Text>
-                  <Text style={styles.skillsHeaderText}>Значение</Text>
-                </View>
-
-                {skills.map((skill, index) => {
-                  const isTagged = selectedSkills.includes(skill.name);
-                  const isForced = forcedSelectedSkills.includes(skill.name) && isTagged;
-                  const maxValue = level === 1 ? (isTagged ? 3 : 3) : 6;
-                  const isMaxReached = skill.value >= maxValue;
-                  const rowStyle = index % 2 === 0 ? styles.evenRow : styles.oddRow;
-                  
-                  return (
-                    <SkillRow 
-                      key={index}
-                      name={skill.name}
-                      value={skill.value}
-                      isSelected={isTagged}
-                      isMaxReached={isMaxReached}
-                      isForced={isForced}
-                      onToggle={() => handleToggleSkill(skill.name)}
-                      onIncrease={() => handleChangeSkillValue(index, 1)}
-                      onDecrease={() => handleChangeSkillValue(index, -1)}
-                      rowStyle={rowStyle}
-                      disabled={!canDistributeSkills && !showTraitSkillModal}
-                      trait={trait}
-                      increaseDisabled={skillPointsLeft <= 0}
-                    />
-                  );
-                })}
-                
+          <View style={styles.rightColumn}>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>НАВЫКИ</Text>
                 {attributesSaved && !skillsSaved && (
-                  <View style={styles.buttonsContainer}>
-                    <TouchableOpacity 
-                      style={[styles.button, styles.saveButton]}
-                      onPress={handleSaveSkills}
-                    >
-                      <Text style={styles.buttonText}>Сохранить</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[styles.button, styles.resetButton]}
-                      onPress={handleResetSkills}
-                    >
-                      <Text style={styles.buttonText}>Сбросить</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <Text style={styles.skillsCount}>
+                    Доступно: {skillPointsLeft} очков
+                  </Text>
                 )}
               </View>
+              <View style={styles.skillsHeader}>
+                <Text style={styles.skillsHeaderText}>Навык</Text>
+                <Text style={styles.skillsHeaderText}>Значение</Text>
+              </View>
+
+              {skills.map((skill, index) => {
+                const isTagged = selectedSkills.includes(skill.name);
+                const isForced = forcedSelectedSkills.includes(skill.name) && isTagged;
+                const maxValue = level === 1 ? (isTagged ? 3 : 3) : 6;
+                const isMaxReached = skill.value >= maxValue;
+                const rowStyle = index % 2 === 0 ? styles.evenRow : styles.oddRow;
+                
+                return (
+                  <SkillRow 
+                    key={index}
+                    name={skill.name}
+                    value={skill.value}
+                    isSelected={isTagged}
+                    isMaxReached={isMaxReached}
+                    isForced={isForced}
+                    onToggle={() => handleToggleSkill(skill.name)}
+                    onIncrease={() => handleChangeSkillValue(index, 1)}
+                    onDecrease={() => handleChangeSkillValue(index, -1)}
+                    rowStyle={rowStyle}
+                    disabled={!canDistributeSkills && !showTraitSkillModal}
+                    trait={trait}
+                    increaseDisabled={skillPointsLeft <= 0}
+                  />
+                );
+              })}
+              
+              {attributesSaved && !skillsSaved && (
+                <View style={styles.buttonsContainer}>
+                  <TouchableOpacity 
+                    style={[styles.button, styles.saveButton]}
+                    onPress={handleSaveSkills}
+                  >
+                    <Text style={styles.buttonText}>Сохранить</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.button, styles.resetButton]}
+                    onPress={handleResetSkills}
+                  >
+                    <Text style={styles.buttonText}>Сбросить</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </View>
-        </ScrollView>
+        </View>
+      </ScrollView>
 
-        <OriginModal
-          isVisible={isOriginModalVisible}
-          origins={ORIGINS}
-          selectedOrigin={selectedOrigin}
-          onSelectOrigin={setSelectedOrigin}
-          onClose={() => {
-            setIsOriginModalVisible(false);
-            setSelectedOrigin(null);
-          }}
-          onConfirm={() => {
-            if (selectedOrigin) {
-              confirmOriginSelection(selectedOrigin);
-            } else {
-              Alert.alert("Ошибка", "Выберите происхождение");
-            }
-          }}
-        />
-        
-        <ResetConfirmationModal
-          visible={showResetWarning}
-          onCancel={cancelReset}
-          onConfirm={confirmReset}
-        />
-        
-        <TraitSkillModal
-          visible={showTraitSkillModal && !!trait}
-          trait={trait}
-          onSelect={handleTraitSkillSelect}
-          onCancel={() => setShowTraitSkillModal(false)}
-        />
+      <OriginModal
+        isVisible={isOriginModalVisible}
+        origins={ORIGINS}
+        selectedOrigin={selectedOrigin}
+        onSelectOrigin={setSelectedOrigin}
+        onClose={() => {
+          setIsOriginModalVisible(false);
+          setSelectedOrigin(null);
+        }}
+        onConfirm={() => {
+          if (selectedOrigin) {
+            confirmOriginSelection(selectedOrigin);
+          } else {
+            Alert.alert("Ошибка", "Выберите происхождение");
+          }
+        }}
+      />
+      
+      <ResetConfirmationModal
+        visible={showResetWarning}
+        onCancel={cancelReset}
+        onConfirm={confirmReset}
+      />
+      
+      <TraitSkillModal
+        visible={showTraitSkillModal && !!trait}
+        trait={trait}
+        onSelect={handleTraitSkillSelect}
+        onCancel={() => setShowTraitSkillModal(false)}
+      />
 
-        {/* Модальное окно для выбора черты */}
-        {TraitModalComponent && (
-          <TraitModalComponent
-            visible={isTraitModalVisible}
-            onClose={() => setIsTraitModalVisible(false)}
-            onSelect={handleSelectTrait}
-            currentTrait={trait}
-            skills={skills}
-          />
-        )}
-      </ImageBackground>
+      {/* Модальное окно для выбора черты */}
+      {TraitModalComponent && (
+        <TraitModalComponent
+          visible={isTraitModalVisible}
+          onClose={() => setIsTraitModalVisible(false)}
+          onSelect={handleSelectTrait}
+          currentTrait={trait}
+          skills={skills}
+        />
+      )}
     </SafeAreaView>
   );
 } 
