@@ -89,13 +89,34 @@ export function canChangeAttribute(value, attrName, delta, trait) {
 }
 
 // Проверка максимума навыка с учетом trait.skillMaxValue
-export function canChangeSkillValue(currentValue, delta, trait, level, isTagged) {
+export function canChangeSkillValue(currentValue, delta, trait, level, isTagged, skillName, selectedSkills) {
   const nextValue = currentValue + delta;
   const minValue = isTagged ? 2 : 0;
   if (nextValue < minValue) return false;
 
-  // Модификатор теперь находится во вложенном объекте
   let maxRank = trait?.modifiers?.skillMaxValue ?? 6;
+
+  // Проверяем, является ли навык ограниченным навыком из пула "Добрая Душа"
+  const isRestrictedKindSoulSkill = trait?.name === 'Добрая Душа' && 
+                                  trait.skillPool?.includes(skillName) && 
+                                  !trait.forcedSkills?.includes(skillName);
+
+  // Применяем ограничение ранга 4 для навыков из пула "Добрая Душа"
+  if (isRestrictedKindSoulSkill) {
+    maxRank = Math.min(maxRank, 4);
+  }
+
+  // Новая логика для ограничения навыков
+  if (trait?.skillRankRestrictions) {
+    const { limit, pool } = trait.skillRankRestrictions;
+    // Определяем, какие навыки из пула НЕ были выбраны
+    const restrictedSkills = pool.filter(skill => !selectedSkills.includes(skill));
+
+    if (restrictedSkills.includes(skillName)) {
+      maxRank = Math.min(maxRank, limit);
+    }
+  }
+
   // На 1-м уровне максимальный ранг не может быть выше 3.
   if (level === 1) {
     maxRank = Math.min(maxRank, 3);

@@ -7,9 +7,9 @@ import ChildOfAtomModal, { traitConfig as childOfAtomConfig } from './ChildOfAto
 import VaultDwellerModal, { traitConfig as vaultDwellerConfig } from './VaultDwellerModal';
 import ProtectronModal, { traitConfig as protectronConfig } from './ProtectronModal';
 import AssaultronModal, { traitConfig as assaultronConfig } from './AssaultronModal';
-import NcrCitizenModal, { traitConfig as ncrCitizenConfig } from './NcrCitizenModal';
 import SurvivorModal, { traitConfig as survivorConfig } from './SurvivorModal';
-// другие импорты
+import KindSoulModal from './KindSoulModal';
+import SectionedTraitModal, { traitConfig as sectionedConfig } from './SectionedTraitModal';
 
 export const TRAIT_MODALS = {
   [brotherhoodConfig.originName]: BrotherhoodModal,
@@ -20,9 +20,10 @@ export const TRAIT_MODALS = {
   [vaultDwellerConfig.originName]: VaultDwellerModal,
   [protectronConfig.originName]: ProtectronModal,
   [assaultronConfig.originName]: AssaultronModal,
-  [ncrCitizenConfig.originName]: NcrCitizenModal,
   [survivorConfig.originName]: SurvivorModal,
-  // остальные
+  'Житель НКР': SectionedTraitModal,
+  'Выживший': SectionedTraitModal,
+  'Добрая Душа': KindSoulModal,
 };
 
 export const TRAIT_CONFIGS = {
@@ -34,9 +35,9 @@ export const TRAIT_CONFIGS = {
   [vaultDwellerConfig.originName]: vaultDwellerConfig,
   [protectronConfig.originName]: protectronConfig,
   [assaultronConfig.originName]: assaultronConfig,
-  [ncrCitizenConfig.originName]: ncrCitizenConfig,
   [survivorConfig.originName]: survivorConfig,
-  // остальные
+  'Житель НКР': sectionedConfig,
+  'Выживший': sectionedConfig,
 };
 
 export const getTraitModalComponent = (originName) => {

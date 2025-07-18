@@ -230,6 +230,9 @@ const styles = StyleSheet.create({
   skillNameRequired: {
     color: '#FF0000',
   },
+  kindSoulSkill: {
+    fontStyle: 'italic',
+  },
   skillValue: {
     color: '#000',
     fontWeight: 'bold',
